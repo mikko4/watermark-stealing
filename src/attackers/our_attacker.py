@@ -101,7 +101,7 @@ class OurAttacker(BaseAttacker):
                 "realnewslike",
                 split="train",
                 streaming=False,
-                cache_dir="/scratch/watermarks/data/work-gcp-europe-west4-a/hf_cache_watermarks/datasets",
+                cache_dir="/scratch/tripakis.m/watermarks/data/work-gcp-europe-west4-a/hf_cache_watermarks/datasets",
             )
         else:
             raise ValueError(f"Unknown dataset: {ds_name}")
