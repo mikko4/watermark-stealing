@@ -94,10 +94,10 @@ class OurAttacker(BaseAttacker):
         apply_wm = self.cfg.querying.apply_watermark
         print(f"Querying the server with {ds_name}", tag="Attacker", tag_color="red", color="white")
         print(f"Watermark: {apply_wm}")
-        if ds_name == "c4":
+        if ds_name == "allenai/c4":
             # 13M total
             dataset = load_dataset(
-                "c4",
+                "allenai/c4",
                 "realnewslike",
                 split="train",
                 streaming=False,

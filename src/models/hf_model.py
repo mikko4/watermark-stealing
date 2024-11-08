@@ -74,7 +74,7 @@ class HfModel:
         else:
             raise ValueError(f"Unknown model name: {self.cfg.name}")
 
-        if self.device == "cuda":
+        if self.device == "cuda" and torch.cuda.is_available():
             self.model.to("cuda")
         self.model.eval()
 
