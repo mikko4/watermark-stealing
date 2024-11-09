@@ -26,9 +26,9 @@ attacker:
   querying:
     skip: false
     dataset: "allenai/c4"
-    batch_size: 64
+    batch_size: 1
     start_from_batch_num: 0
-    end_at_batch_num: 100
+    end_at_batch_num: 1
     apply_watermark: true
   learning:
     skip: false
