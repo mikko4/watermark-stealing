@@ -228,7 +228,7 @@ class Evaluator:
         completions: List[str],
         metrics: List[QualityMetricValues],
         key: Optional[str] = None,
-        extra_data: Dict[Any,Any] = {},
+        extra_data: Dict[Any, Any] = {},
     ) -> None:
         if self.run is None:
             return

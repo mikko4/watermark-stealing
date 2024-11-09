@@ -62,7 +62,7 @@ evaluator:
     # - "gpt4"
     # - "self"
   eval_mode:
-    - "dolly-writing-100-long"
+    - "dolly-writing-100"
 gradio:
   skip: true
   make_public: false
