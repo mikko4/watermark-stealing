@@ -137,7 +137,7 @@ class OurAttacker(BaseAttacker):
                 os.makedirs(os.path.dirname(filename), exist_ok=True)
                 with open(filename, "a") as f:
                     f.write(json.dumps(entry) + "\n")
-            print(f"Done with batch {i} of {len(batch_idxs)}.\n")
+            print(f"Done with batch {i+1} of {len(batch_idxs)}.\n")
 
     def _batched(self, iterable: List, n: int) -> List:
         iter_len = len(iterable)
