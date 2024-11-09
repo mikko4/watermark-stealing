@@ -1,7 +1,7 @@
 meta:
   device: "cuda"
   seed: [123, 124, 125, 126, 127]
-  out_root_dir: "out_gpt2neo/"
+  out_root_dir: "/scratch/tripakis.m/watermarks/out_gpt2neo/"
   use_neptune: false
 server:
   model:
