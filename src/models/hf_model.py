@@ -164,15 +164,26 @@ class HfModel:
         ProgressLogger.start("Calling model.generate")
         print(batchenc["input_ids"].shape)
         with autocast():
-            completions = self.model.generate(
-                **batchenc,
-                max_new_tokens=self.cfg.response_max_len,
-                pad_token_id=self.tokenizer.eos_token_id,
-                num_beams=self.cfg.n_beams,
-                do_sample=self.cfg.use_sampling,
-                temperature=self.cfg.sampling_temp,
-                logits_processor=logit_processors,
-            )
+            if isinstance(self.model, torch.nn.DataParallel):
+                completions = self.model.module.generate(
+                    **batchenc,
+                    max_new_tokens=self.cfg.response_max_len,
+                    pad_token_id=self.tokenizer.eos_token_id,
+                    num_beams=self.cfg.n_beams,
+                    do_sample=self.cfg.use_sampling,
+                    temperature=self.cfg.sampling_temp,
+                    logits_processor=logit_processors,
+                )
+            else:
+                completions = self.model.generate(
+                    **batchenc,
+                    max_new_tokens=self.cfg.response_max_len,
+                    pad_token_id=self.tokenizer.eos_token_id,
+                    num_beams=self.cfg.n_beams,
+                    do_sample=self.cfg.use_sampling,
+                    temperature=self.cfg.sampling_temp,
+                    logits_processor=logit_processors,
+                )
         ProgressLogger.stop()
 
         if is_decoder_only_model(self.cfg.name):
