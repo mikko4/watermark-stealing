@@ -68,13 +68,9 @@ class HfModel:
             self.model = AutoModelForCausalLM.from_pretrained(
                 self.cfg.name,
                 torch_dtype=torch.float16 if self.cfg.use_fp16 else torch.float32,
-                # attn_implementation="flash_attention_2" if self.cfg.use_flashattn2 else "default",
                 use_flash_attention_2=self.cfg.use_flashattn2,
                 device_map="auto",
             )
-            if torch.cuda.device_count() > 1:
-                print("parallelism enabled", color="yellow")
-                self.model = torch.nn.DataParallel(self.model, device_ids=[0, 1])
 
         elif "dipper" in self.cfg.name:
             self.model = T5ForConditionalGeneration.from_pretrained(self.cfg.name)
@@ -164,27 +160,15 @@ class HfModel:
         ProgressLogger.start("Calling model.generate")
         print(batchenc["input_ids"].shape)
         with autocast():
-            if isinstance(self.model, torch.nn.DataParallel):
-                batchenc = {key: value.to("cuda:0") for key, value in batchenc.items()}
-                completions = self.model.module.generate(
-                    **batchenc,
-                    max_new_tokens=self.cfg.response_max_len,
-                    pad_token_id=self.tokenizer.eos_token_id,
-                    num_beams=self.cfg.n_beams,
-                    do_sample=self.cfg.use_sampling,
-                    temperature=self.cfg.sampling_temp,
-                    logits_processor=logit_processors,
-                )
-            else:
-                completions = self.model.generate(
-                    **batchenc,
-                    max_new_tokens=self.cfg.response_max_len,
-                    pad_token_id=self.tokenizer.eos_token_id,
-                    num_beams=self.cfg.n_beams,
-                    do_sample=self.cfg.use_sampling,
-                    temperature=self.cfg.sampling_temp,
-                    logits_processor=logit_processors,
-                )
+            completions = self.model.generate(
+                **batchenc,
+                max_new_tokens=self.cfg.response_max_len,
+                pad_token_id=self.tokenizer.eos_token_id,
+                num_beams=self.cfg.n_beams,
+                do_sample=self.cfg.use_sampling,
+                temperature=self.cfg.sampling_temp,
+                logits_processor=logit_processors,
+            )
         ProgressLogger.stop()
 
         if is_decoder_only_model(self.cfg.name):
