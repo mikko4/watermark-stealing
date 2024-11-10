@@ -27,7 +27,7 @@ from src.config import (
 from src.models import HfModel, OpenAIModel, fix_isolated_punctuation
 from src.server import Server
 from src.utils import create_open, get_gpt4_safeprompts, print
-from src.watermarks import KgwWatermark
+from src.watermarks import MikkoWatermark, KgwWatermark
 
 
 class OurAttacker(BaseAttacker):
@@ -67,14 +67,20 @@ class OurAttacker(BaseAttacker):
             )  # e.g., "out/ours/base"
 
         # NOTE: brittle, cares only about /previous/ context
-        if self.server_wm_scheme != WatermarkScheme.KGW:
+        if self.server_wm_scheme == WatermarkScheme.KGW:
+            self.prevctx_width = KgwWatermark.get_prevctx_width(self.server_wm_seeding_scheme[0])
+            for scheme in self.server_wm_seeding_scheme[1:]:
+                if KgwWatermark.get_prevctx_width(scheme) != self.prevctx_width:
+                    raise ValueError("All schemes must have the same prevctx width")
+        elif self.server_wm_scheme != WatermarkScheme.MIKKO:
+            self.prevctx_width = MikkoWatermark.get_prevctx_width(self.server_wm_seeding_scheme[0])
+            for scheme in self.server_wm_seeding_scheme[1:]:
+                if MikkoWatermark.get_prevctx_width(scheme) != self.prevctx_width:
+                    raise ValueError("All schemes must have the same prevctx width")
+        else:
             raise NotImplementedError(
-                f"Unsupported watemarking scheme for the attacker: {self.server_wm_scheme}"
+                f"Unsupported watermarking scheme for the attacker: {self.server_wm_scheme}"
             )
-        self.prevctx_width = KgwWatermark.get_prevctx_width(self.server_wm_seeding_scheme[0])
-        for scheme in self.server_wm_seeding_scheme[1:]:
-            if KgwWatermark.get_prevctx_width(scheme) != self.prevctx_width:
-                raise ValueError("All schemes must have the same prevctx width")
 
         # Init counts
         self.counts_base: CountStore = CountStore(self.prevctx_width)
