@@ -72,7 +72,7 @@ class OurAttacker(BaseAttacker):
             for scheme in self.server_wm_seeding_scheme[1:]:
                 if KgwWatermark.get_prevctx_width(scheme) != self.prevctx_width:
                     raise ValueError("All schemes must have the same prevctx width")
-        elif self.server_wm_scheme != WatermarkScheme.MIKKO:
+        elif self.server_wm_scheme == WatermarkScheme.MIKKO:
             self.prevctx_width = MikkoWatermark.get_prevctx_width(self.server_wm_seeding_scheme[0])
             for scheme in self.server_wm_seeding_scheme[1:]:
                 if MikkoWatermark.get_prevctx_width(scheme) != self.prevctx_width:
