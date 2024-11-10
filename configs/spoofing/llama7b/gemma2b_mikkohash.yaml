@@ -25,10 +25,10 @@ attacker:
     use_sampling: true
   querying:
     skip: false
-    dataset: "c4"
+    dataset: "allenai/c4"
     batch_size: 64
     start_from_batch_num: 0
-    end_at_batch_num: 469
+    end_at_batch_num: 500
     apply_watermark: true
   learning:
     skip: false
