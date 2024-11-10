@@ -73,7 +73,8 @@ class HfModel:
                 device_map="auto",
             )
             if torch.cuda.device_count() > 1:
-                self.model = torch.nn.DataParallel(self.model)
+                print("parallelism enabled", color="yellow")
+                self.model = torch.nn.DataParallel(self.model, device_ids=[0, 1])
 
         elif "dipper" in self.cfg.name:
             self.model = T5ForConditionalGeneration.from_pretrained(self.cfg.name)
