@@ -165,6 +165,7 @@ class HfModel:
         print(batchenc["input_ids"].shape)
         with autocast():
             if isinstance(self.model, torch.nn.DataParallel):
+                batchenc = {key: value.to("cuda:0") for key, value in batchenc.items()}
                 completions = self.model.module.generate(
                     **batchenc,
                     max_new_tokens=self.cfg.response_max_len,
