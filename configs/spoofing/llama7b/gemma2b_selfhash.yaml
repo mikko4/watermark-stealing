@@ -31,7 +31,7 @@ attacker:
     end_at_batch_num: 469
     apply_watermark: true
   learning:
-    skip: false
+    skip: true
     mode: "fast"
     nb_queries: 30000
   generation:

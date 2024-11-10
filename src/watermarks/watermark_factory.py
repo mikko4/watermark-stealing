@@ -5,6 +5,7 @@ from transformers import PreTrainedTokenizer
 from src.config import MetaConfig, WatermarkConfig, WatermarkScheme
 from src.watermarks.base_watermark import BaseWatermark
 from src.watermarks.kgw_watermark import KgwWatermark
+from src.watermarks.mikko_watermark import MikkoWatermark
 
 
 def get_watermark(
@@ -17,5 +18,10 @@ def get_watermark(
         if tokenizer is None or model_name is None:
             raise ValueError("KGW watermark requires tokenizer and model_name to be passed")
         return KgwWatermark(meta_cfg, watermark_cfg, tokenizer, model_name)
+    elif watermark_cfg.scheme == WatermarkScheme.MIKKO:
+        if tokenizer is None or model_name is None:
+            raise ValueError("Mikko watermark requires tokenizer and model_name to be passed")
+        return MikkoWatermark(meta_cfg, watermark_cfg, tokenizer, model_name)
+
     else:
         raise ValueError(f"Unknown watermark scheme: {watermark_cfg.scheme}")

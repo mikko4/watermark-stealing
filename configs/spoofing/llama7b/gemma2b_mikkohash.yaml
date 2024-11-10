@@ -8,7 +8,7 @@ server:
     cfg_path: "configs/model/llama7b.yaml"
     skip: false
   watermark:
-    scheme: "kgw"
+    scheme: "mikko"
     generation:
       - seeding_scheme: ["selfhash"]
         gamma: 0.25

@@ -732,3 +732,145 @@ def ngrams(sequence, n, pad_left=False, pad_right=False, pad_symbol=None):
         for _ in range(i):  # iterate through every order of ngrams
             next(sub_iterable, None)  # generate the ngrams within the window.
     return zip(*iterables)  # Unpack and flattens the iterables.
+
+
+class VariableContextWatermarkLogitsProcessor(WatermarkLogitsProcessor):
+    def __init__(
+        self,
+        *args,
+        min_context_width=1,
+        max_context_width=7,
+        **kwargs,
+    ):
+        super().__init__(*args, **kwargs)
+        self.min_context_width = min_context_width
+        self.max_context_width = max_context_width
+
+    def _compute_context_width(self, input_ids):
+        """Compute the pseudorandom context width based on input_ids."""
+        # Use a PRF to generate context width between min and max
+        prf_key = prf_lookup[self.prf_type](input_ids, salt_key=self.hash_key)
+        context_range = self.max_context_width - self.min_context_width + 1
+        context_width = (prf_key % context_range) + self.min_context_width
+        # Ensure context_width does not exceed length of input_ids
+        context_width = min(context_width, input_ids.shape[-1])
+        return context_width
+
+    def _seed_rng(self, input_ids: torch.LongTensor) -> None:
+        """Seed RNG from variable context width."""
+        context_width = self._compute_context_width(input_ids)
+        if input_ids.shape[-1] < context_width:
+            raise ValueError(f"Not enough tokens to seed RNG with context width {context_width}.")
+        # Use the context_width to seed the RNG
+        prf_key = prf_lookup[self.prf_type](input_ids[-context_width:], salt_key=self.hash_key)
+        self.rng.manual_seed(prf_key % (2**64 - 1))
+
+    def _get_greenlist_ids(self, input_ids: torch.LongTensor) -> torch.LongTensor:
+        """Generate greenlist IDs using variable context width."""
+        self._seed_rng(input_ids)
+        greenlist_size = int(self.vocab_size * self.gamma)
+        vocab_permutation = torch.randperm(
+            self.vocab_size, device=input_ids.device, generator=self.rng
+        )
+        if self.select_green_tokens:
+            greenlist_ids = vocab_permutation[:greenlist_size]
+        else:
+            greenlist_ids = vocab_permutation[-greenlist_size:]
+        return greenlist_ids
+
+
+class VariableContextWatermarkDetector(WatermarkDetector):
+    def __init__(
+        self,
+        *args,
+        min_context_width=1,
+        max_context_width=7,
+        **kwargs,
+    ):
+        super().__init__(*args, **kwargs)
+        self.min_context_width = min_context_width
+        self.max_context_width = max_context_width
+
+    def _compute_context_width(self, input_ids):
+        """Compute the pseudorandom context width based on input_ids."""
+        prf_key = prf_lookup[self.prf_type](input_ids, salt_key=self.hash_key)
+        context_range = self.max_context_width - self.min_context_width + 1
+        context_width = (prf_key % context_range) + self.min_context_width
+        context_width = min(context_width, input_ids.shape[-1])
+        return context_width
+
+    def _score_sequence(
+        self,
+        input_ids: torch.Tensor,
+        return_num_tokens_scored: bool = True,
+        return_num_green_tokens: bool = True,
+        return_green_fraction: bool = True,
+        return_token_mask: bool = True,
+        return_z_score: bool = True,
+        return_z_at_T: bool = True,
+        return_p_value: bool = True,
+    ):
+        """Score the input sequence using variable context widths."""
+        green_token_mask = []
+        num_tokens_scored = 0
+        green_token_count = 0
+
+        # Start from min_context_width since we need at least that many tokens
+        for i in range(self.min_context_width, len(input_ids)):
+            # Compute context width for current position
+            input_ids_slice = input_ids[:i]
+            context_width = self._compute_context_width(input_ids_slice)
+            # Ensure context width does not exceed current position
+            context_width = min(context_width, i)
+            # Get the context and target token
+            context = input_ids_slice[-context_width:]
+            target_token = input_ids[i]
+            # Seed RNG and generate greenlist
+            prf_key = prf_lookup[self.prf_type](context, salt_key=self.hash_key)
+            self.rng.manual_seed(prf_key % (2**64 - 1))
+            greenlist_size = int(self.vocab_size * self.gamma)
+            vocab_permutation = torch.randperm(
+                self.vocab_size, device=input_ids.device, generator=self.rng
+            )
+            if self.select_green_tokens:
+                greenlist_ids = vocab_permutation[:greenlist_size]
+            else:
+                greenlist_ids = vocab_permutation[-greenlist_size:]
+            # Check if the target token is in the greenlist
+            is_green = target_token in greenlist_ids
+            green_token_mask.append(is_green)
+            num_tokens_scored += 1
+            if is_green:
+                green_token_count += 1
+
+        # Convert green_token_mask to tensor
+        green_token_mask = torch.tensor(green_token_mask, device=input_ids.device)
+
+        # Compute statistical metrics
+        green_fraction = green_token_count / num_tokens_scored if num_tokens_scored > 0 else 0.0
+        z_score = (
+            self._compute_z_score(green_token_count, num_tokens_scored)
+            if num_tokens_scored > 0
+            else 0.0
+        )
+
+        # Build the output dictionary
+        score_dict = {}
+        if return_num_tokens_scored:
+            score_dict["num_tokens_scored"] = num_tokens_scored
+        if return_num_green_tokens:
+            score_dict["num_green_tokens"] = green_token_count
+        if return_green_fraction:
+            score_dict["green_fraction"] = green_fraction
+        if return_z_score:
+            score_dict["z_score"] = z_score
+        if return_p_value:
+            p_value = self._compute_p_value(z_score)
+            score_dict["p_value"] = p_value
+        if return_token_mask:
+            # Pad the beginning with -1 to align with input_ids
+            padding = [-1] * self.min_context_width
+            actual_token_mask = padding + green_token_mask.to(int).tolist()
+            score_dict["token_mask"] = actual_token_mask
+
+        return score_dict

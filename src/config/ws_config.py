@@ -83,6 +83,7 @@ class EvalMetric(Enum):
 
 class WatermarkScheme(Enum):
     KGW = "kgw"
+    MIKKO = "mikko"
 
 
 class SyspromptType(Enum):
