@@ -68,8 +68,8 @@ class HfModel:
             self.model = AutoModelForCausalLM.from_pretrained(
                 self.cfg.name,
                 torch_dtype=torch.float16 if self.cfg.use_fp16 else torch.float32,
-                attn_implementation="flash_attention_2" if self.cfg.use_flashattn2 else "default",
-                # use_flash_attention_2=self.cfg.use_flashattn2,
+                # attn_implementation="flash_attention_2" if self.cfg.use_flashattn2 else "default",
+                use_flash_attention_2=self.cfg.use_flashattn2,
                 device_map="auto",
             )
             if torch.cuda.device_count() > 1:
