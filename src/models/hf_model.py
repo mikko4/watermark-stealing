@@ -26,6 +26,8 @@ from src.models.utils import (
 )
 from src.utils import ProgressLogger, print
 
+from torch.cuda.amp import autocast
+
 
 class HfModel:
     def __init__(self, meta_cfg: MetaConfig, model_cfg: ModelConfig) -> None:
@@ -66,9 +68,13 @@ class HfModel:
             self.model = AutoModelForCausalLM.from_pretrained(
                 self.cfg.name,
                 torch_dtype=torch.float16 if self.cfg.use_fp16 else torch.float32,
-                use_flash_attention_2=self.cfg.use_flashattn2,
+                attn_implementation="flash_attention_2" if self.cfg.use_flashattn2 else "default",
+                # use_flash_attention_2=self.cfg.use_flashattn2,
                 device_map="auto",
             )
+            if torch.cuda.device_count() > 1:
+                self.model = torch.nn.DataParallel(self.model)
+
         elif "dipper" in self.cfg.name:
             self.model = T5ForConditionalGeneration.from_pretrained(self.cfg.name)
         else:
@@ -156,15 +162,16 @@ class HfModel:
 
         ProgressLogger.start("Calling model.generate")
         print(batchenc["input_ids"].shape)
-        completions = self.model.generate(
-            **batchenc,
-            max_new_tokens=self.cfg.response_max_len,
-            pad_token_id=self.tokenizer.eos_token_id,
-            num_beams=self.cfg.n_beams,
-            do_sample=self.cfg.use_sampling,
-            temperature=self.cfg.sampling_temp,
-            logits_processor=logit_processors,
-        )
+        with autocast():
+            completions = self.model.generate(
+                **batchenc,
+                max_new_tokens=self.cfg.response_max_len,
+                pad_token_id=self.tokenizer.eos_token_id,
+                num_beams=self.cfg.n_beams,
+                do_sample=self.cfg.use_sampling,
+                temperature=self.cfg.sampling_temp,
+                logits_processor=logit_processors,
+            )
         ProgressLogger.stop()
 
         if is_decoder_only_model(self.cfg.name):
