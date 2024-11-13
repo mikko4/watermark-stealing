@@ -50,6 +50,8 @@ class MikkoWatermark(BaseWatermark):
             seeding_scheme=self.cfg.generation.seeding_scheme,
             device=self.device,
             tokenizer=self.tokenizer,  # needed just for debug
+            min_context_width=1,
+            max_context_width=5,
         )
 
     def detect(self, completions: List[str]) -> List[dict]:
@@ -62,6 +64,8 @@ class MikkoWatermark(BaseWatermark):
             normalizers=self.cfg.detection.normalizers,
             z_threshold=self.cfg.detection.z_threshold,
             ignore_repeated_ngrams=self.cfg.detection.ignore_repeated_ngrams,
+            min_context_width=1,
+            max_context_width=5,
         )
         detector_results: List[Any] = []
         for completion in completions:

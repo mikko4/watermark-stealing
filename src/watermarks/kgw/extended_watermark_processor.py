@@ -739,7 +739,7 @@ class VariableContextWatermarkLogitsProcessor(WatermarkLogitsProcessor):
         self,
         *args,
         min_context_width=1,
-        max_context_width=7,
+        max_context_width=4,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
@@ -784,7 +784,7 @@ class VariableContextWatermarkDetector(WatermarkDetector):
         self,
         *args,
         min_context_width=1,
-        max_context_width=7,
+        max_context_width=4,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)

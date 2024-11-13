@@ -1,7 +1,7 @@
 meta:
   device: "cuda"
   seed: 123
-  out_root_dir: "/scratch/tripakis.m/watermarks/out_all/out_llama_selfquery/"
+  out_root_dir: "/scratch/tripakis.m/watermarks/out_all/out_llama/"
   use_neptune: false
 server:
   model:
@@ -26,14 +26,14 @@ attacker:
   querying:
     skip: false
     dataset: "allenai/c4"
-    batch_size: 32
+    batch_size: 16
     start_from_batch_num: 0
-    end_at_batch_num: 200
+    end_at_batch_num: 1875
     apply_watermark: true
   learning:
-    skip: true
+    skip: false
     mode: "fast"
-    nb_queries: 30000
+    nb_queries: 28000
   generation:
     sysprompt: "standard"
     spoofer_strength: 10
@@ -53,7 +53,7 @@ attacker:
     prevent_eos_if_zest_bad: true
     use_graceful_conclusion: true
 evaluator:
-  skip: true
+  skip: false
   batch_size: 4
   eval_class: "spoofing"
   metrics:
