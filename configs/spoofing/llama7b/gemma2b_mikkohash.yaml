@@ -1,11 +1,11 @@
 meta:
   device: "cuda"
-  seed: [123, 124, 125, 126, 127]
+  seed: 123
   out_root_dir: "/scratch/tripakis.m/watermarks/out_all/out_llama_selfquery/"
   use_neptune: false
 server:
   model:
-    cfg_path: "configs/model/llama7b.yaml"
+    cfg_path: "configs/model/small_llama7b.yaml"
     skip: false
   watermark:
     scheme: "mikko"
