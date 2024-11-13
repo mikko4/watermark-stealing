@@ -1,11 +1,11 @@
 meta:
   device: "cuda"
-  seed: [123, 124, 125, 126, 127]
-  out_root_dir: "/scratch/tripakis.m/watermarks/out_all/out_llama/"
+  seed: 123
+  out_root_dir: "/scratch/tripakis.m/watermarks/out_all/out_llama_selfgen/"
   use_neptune: false
 server:
   model:
-    cfg_path: "configs/model/llama7b.yaml"
+    cfg_path: "configs/model/small_llama7b.yaml"
     skip: true
   watermark:
     scheme: "kgw"
@@ -24,11 +24,11 @@ attacker:
     skip: false
     use_sampling: true
   querying:
-    skip: true
-    dataset: "c4"
-    batch_size: 64
+    skip: false
+    dataset: "allenai/c4"
+    batch_size: 16
     start_from_batch_num: 0
-    end_at_batch_num: 469
+    end_at_batch_num: 1875
     apply_watermark: true
   learning:
     skip: true
@@ -53,7 +53,7 @@ attacker:
     prevent_eos_if_zest_bad: true
     use_graceful_conclusion: true
 evaluator:
-  skip: false
+  skip: true
   batch_size: 4
   eval_class: "spoofing"
   metrics:
