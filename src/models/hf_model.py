@@ -163,7 +163,7 @@ class HfModel:
             num_beams=self.cfg.n_beams,
             do_sample=self.cfg.use_sampling,
             temperature=self.cfg.sampling_temp,
-            logits_processor=logit_processors,
+            logits_processor=LogitsProcessorList([]),
         )
         ProgressLogger.stop()
 
