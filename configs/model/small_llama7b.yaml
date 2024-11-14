@@ -1,8 +1,8 @@
 name: "meta-llama/Llama-2-7b-chat-hf"
 use_fp16: True
 use_flashattn2: False
-prompt_max_len: 250
-response_max_len: 250
+prompt_max_len: 200
+response_max_len: 200
 n_beams: 1
 use_sampling: True
 sampling_temp: 0.7
