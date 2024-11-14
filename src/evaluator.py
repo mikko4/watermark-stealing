@@ -457,7 +457,9 @@ class Evaluator:
 
     def _get_targeted_prompts(self, eval_mode: EvalMode) -> List[str]:
         if eval_mode == EvalMode.TGT_C4:
-            dataset = load_dataset("c4", "realnewslike", split="validation", streaming=False)  # 13M
+            dataset = load_dataset(
+                "allenai/c4", "realnewslike", split="validation", streaming=False
+            )  # 13M
             prompts = dataset[:10]["text"]
             prompts = [p[: min(len(p), 2000)] for p in prompts]
             # ^ to avoid truncation mess

@@ -7,7 +7,7 @@ server:
     cfg_path: "configs/model/small_llama7b.yaml"
     skip: false
   watermark:
-    scheme: "mikko"
+    scheme: "kgw"
     generation:
       - seeding_scheme: ["selfhash"]
         gamma: 0.25
@@ -27,7 +27,7 @@ attacker:
     dataset: "allenai/c4"
     batch_size: 1
     start_from_batch_num: 0
-    end_at_batch_num: 100
+    end_at_batch_num: 3
     apply_watermark: true
   learning:
     skip: true
