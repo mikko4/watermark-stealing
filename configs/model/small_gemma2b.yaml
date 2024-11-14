@@ -1,6 +1,6 @@
-name: "meta-llama/Llama-2-7b-chat-hf"
+name: "google/gemma-2b-it"
 use_fp16: True
-use_flashattn2: True
+use_flashattn2: False
 prompt_max_len: 100
 response_max_len: 200
 n_beams: 1

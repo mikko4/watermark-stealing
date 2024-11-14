@@ -21,7 +21,7 @@ attacker:
   algo: "our"
   model:
     cfg_path: "configs/model/gemma2b.yaml"
-    skip: false
+    skip: true
     use_sampling: true
   querying:
     skip: false

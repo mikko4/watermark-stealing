@@ -21,14 +21,14 @@ attacker:
   algo: "our"
   model:
     cfg_path: "configs/model/gemma2b.yaml"
-    skip: false
+    skip: true
     use_sampling: true
   querying:
     skip: false
     dataset: "allenai/c4"
     batch_size: 16
     start_from_batch_num: 0
-    end_at_batch_num: 2
+    end_at_batch_num: 1875
     apply_watermark: true
   learning:
     skip: true
