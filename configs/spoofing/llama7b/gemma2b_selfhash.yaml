@@ -1,6 +1,6 @@
 meta:
   device: "cuda"
-  seed: 123
+  seed: 124
   out_root_dir: "/scratch/tripakis.m/watermarks/out_all/out_llama_selfgen/"
   use_neptune: false
 server:
