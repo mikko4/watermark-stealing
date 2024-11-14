@@ -28,7 +28,7 @@ attacker:
     dataset: "allenai/c4"
     batch_size: 16
     start_from_batch_num: 0
-    end_at_batch_num: 1875
+    end_at_batch_num: 2
     apply_watermark: true
   learning:
     skip: true
