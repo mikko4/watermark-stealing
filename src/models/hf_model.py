@@ -113,19 +113,13 @@ class HfModel:
             inputs = prompts
             add_special_tokens = True
 
-        max_length = min(
-            self.cfg.prompt_max_len,
-            self.tokenizer.model_max_length,
-            self.model.config.max_position_embeddings,
-        )
-
         batchenc: BatchEncoding = self.tokenizer(
             inputs,
             return_tensors="pt",
             add_special_tokens=add_special_tokens,
             truncation=not prevent_truncation,
-            padding="longest",
-            max_length=max_length,
+            padding=len(inputs) > 1,
+            max_length=self.cfg.prompt_max_len,
             return_offsets_mapping=return_offsets,
         ).to(self.device)
 
