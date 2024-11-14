@@ -1,5 +1,5 @@
 meta:
-  device: "cpu"
+  device: "mps"
   seed: 123
   out_root_dir: "out_llama/"
 server:
