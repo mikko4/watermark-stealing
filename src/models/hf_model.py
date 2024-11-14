@@ -69,14 +69,12 @@ class HfModel:
                 use_flash_attention_2=self.cfg.use_flashattn2,
                 device_map="auto",
             )
-
         elif "dipper" in self.cfg.name:
             self.model = T5ForConditionalGeneration.from_pretrained(self.cfg.name)
         else:
             raise ValueError(f"Unknown model name: {self.cfg.name}")
 
-        if self.device == "cuda" and torch.cuda.is_available():
-            print("Moving model to cuda", color="green")
+        if self.device == "cuda":
             self.model.to("cuda")
         self.model.eval()
 
