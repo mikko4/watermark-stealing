@@ -17,7 +17,7 @@ from src.utils import print
 class OpenAIModel:
     def __init__(self, meta_cfg: MetaConfig, model_cfg: ModelConfig) -> None:
         self.cfg = model_cfg
-        self.client = openai.OpenAI(api_key=os.environ["OAI_API_KEY"])
+        self.client = openai.OpenAI(api_key=os.environ["OPENAI_API_KEY"])
         self.system_prompt = textwrap.dedent(
             """
         You are a helpful assistant.

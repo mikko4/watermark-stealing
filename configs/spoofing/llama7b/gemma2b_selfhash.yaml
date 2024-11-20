@@ -6,7 +6,7 @@ meta:
 server:
   model:
     cfg_path: "configs/model/small_llama7b.yaml"
-    skip: false
+    skip: true
   watermark:
     scheme: "kgw"
     generation:
@@ -21,19 +21,19 @@ attacker:
   algo: "our"
   model:
     cfg_path: "configs/model/gemma2b.yaml"
-    skip: true
+    skip: false
     use_sampling: true
   querying:
-    skip: false
+    skip: true
     dataset: "allenai/c4"
     batch_size: 16
     start_from_batch_num: 0
     end_at_batch_num: 1875
     apply_watermark: true
   learning:
-    skip: true
+    skip: false
     mode: "fast"
-    nb_queries: 30000
+    nb_queries: 12600
   generation:
     sysprompt: "standard"
     spoofer_strength: 10
@@ -53,7 +53,7 @@ attacker:
     prevent_eos_if_zest_bad: true
     use_graceful_conclusion: true
 evaluator:
-  skip: true
+  skip: false
   batch_size: 4
   eval_class: "spoofing"
   metrics:

@@ -16,11 +16,13 @@ class JSONContentException(Exception):
         self.key = key
 
 
-def query_api(inputs: List[Any], model: str = "gpt-4", **kwargs: Any) -> Iterator[Tuple[int, str]]:
+def query_api(
+    inputs: List[Any], model: str = "gpt-4o-mini", **kwargs: Any
+) -> Iterator[Tuple[int, str]]:
     max_workers = 8
     base_timeout = 240
 
-    client = openai.OpenAI(api_key=os.environ["OAI_API_KEY"])
+    client = openai.OpenAI(api_key=os.environ["OPENAI_API_KEY"])
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         ids_to_do = list(range(len(inputs)))
@@ -209,7 +211,7 @@ def get_gpt4_grades(prompts: List[str], completions: List[str]) -> List[Any]:
 
 
 def get_gpt4_safeprompts(prompt: str) -> List[str]:
-    client = openai.OpenAI(api_key=os.environ["OAI_API_KEY"])
+    client = openai.OpenAI(api_key=os.environ["OPENAI_API_KEY"])
 
     system_prompt = textwrap.dedent(
         """
@@ -228,7 +230,7 @@ def get_gpt4_safeprompts(prompt: str) -> List[str]:
     )
 
     response = client.chat.completions.create(
-        model="gpt-4-1106-preview",
+        model="gpt-4o-mini",
         messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": case}],
     )
     try:

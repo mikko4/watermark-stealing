@@ -11,6 +11,8 @@ out*/
 src/models/psp/*.zip*
 src/models/psp/wget-log
 data/work-gcp-europe-west4-a
+results.csv
+analysis.py
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
