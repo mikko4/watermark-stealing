@@ -13,6 +13,7 @@ src/models/psp/wget-log
 data/work-gcp-europe-west4-a
 results.csv
 analysis.py
+c4-mikko-selfhash/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -175,3 +176,12 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 .DS_Store
+
+1.txt
+2.txt
+analysis.ipynb
+detect.py
+gen_kgw.txt
+gen.txt
+watermark_results.jsonl
+watermark_results2.jsonl

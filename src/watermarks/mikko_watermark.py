@@ -9,7 +9,8 @@ from src.watermarks.base_watermark import BaseWatermark
 from src.watermarks.kgw import (  # type: ignore
     WatermarkLogitsProcessor,
     VariableContextWatermarkLogitsProcessor,
-    VariableContextWatermarkDetector,
+    WatermarkDetector,
+    # VariableContextWatermarkDetector,
 )
 
 # NOTE ^ type ignored as external wm submodules don't typecheck
@@ -55,7 +56,19 @@ class MikkoWatermark(BaseWatermark):
         )
 
     def detect(self, completions: List[str]) -> List[dict]:
-        detector = VariableContextWatermarkDetector(
+        # detector = VariableContextWatermarkDetector(
+        #     vocab=self.vocab,
+        #     seeding_scheme=self.cfg.generation.seeding_scheme,
+        #     gamma=self.cfg.generation.gamma,
+        #     device=self.device,
+        #     tokenizer=self.tokenizer,
+        #     normalizers=self.cfg.detection.normalizers,
+        #     z_threshold=self.cfg.detection.z_threshold,
+        #     ignore_repeated_ngrams=self.cfg.detection.ignore_repeated_ngrams,
+        #     min_context_width=1,
+        #     max_context_width=5,
+        # )
+        detector = WatermarkDetector(
             vocab=self.vocab,
             seeding_scheme=self.cfg.generation.seeding_scheme,
             gamma=self.cfg.generation.gamma,
@@ -64,8 +77,6 @@ class MikkoWatermark(BaseWatermark):
             normalizers=self.cfg.detection.normalizers,
             z_threshold=self.cfg.detection.z_threshold,
             ignore_repeated_ngrams=self.cfg.detection.ignore_repeated_ngrams,
-            min_context_width=1,
-            max_context_width=5,
         )
         detector_results: List[Any] = []
         for completion in completions:

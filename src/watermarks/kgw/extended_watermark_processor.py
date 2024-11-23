@@ -754,6 +754,7 @@ class VariableContextWatermarkLogitsProcessor(WatermarkLogitsProcessor):
         context_width = (prf_key % context_range) + self.min_context_width
         # Ensure context_width does not exceed length of input_ids
         context_width = min(context_width, input_ids.shape[-1])
+        # print(f"Generated context width: {context_width}")
         return context_width
 
     def _seed_rng(self, input_ids: torch.LongTensor) -> None:
@@ -793,11 +794,121 @@ class VariableContextWatermarkDetector(WatermarkDetector):
 
     def _compute_context_width(self, input_ids):
         """Compute the pseudorandom context width based on input_ids."""
+        # Use a PRF to generate context width between min and max
         prf_key = prf_lookup[self.prf_type](input_ids, salt_key=self.hash_key)
         context_range = self.max_context_width - self.min_context_width + 1
         context_width = (prf_key % context_range) + self.min_context_width
+        # Ensure context_width does not exceed length of input_ids
         context_width = min(context_width, input_ids.shape[-1])
+        print(f"Detected context width: {context_width}")
         return context_width
+
+    def _seed_rng(self, input_ids: torch.LongTensor) -> None:
+        """Seed RNG from variable context width."""
+        context_width = self._compute_context_width(input_ids)
+        if input_ids.shape[-1] < context_width:
+            raise ValueError(f"Not enough tokens to seed RNG with context width {context_width}.")
+        # Use the context_width to seed the RNG
+        prf_key = prf_lookup[self.prf_type](input_ids[-context_width:], salt_key=self.hash_key)
+        self.rng.manual_seed(prf_key % (2**64 - 1))
+
+    def _get_greenlist_ids(self, input_ids: torch.LongTensor) -> torch.LongTensor:
+        """Generate greenlist IDs using variable context width."""
+        self._seed_rng(input_ids)
+        greenlist_size = int(self.vocab_size * self.gamma)
+        vocab_permutation = torch.randperm(
+            self.vocab_size, device=input_ids.device, generator=self.rng
+        )
+        if self.select_green_tokens:
+            greenlist_ids = vocab_permutation[:greenlist_size]
+        else:
+            greenlist_ids = vocab_permutation[-greenlist_size:]
+        return greenlist_ids
+
+    @lru_cache(maxsize=2**32)
+    def _get_ngram_score_cached(self, context: tuple[int], target: int):
+        """Cached method to compute whether the target token is in the greenlist for the given context."""
+        greenlist_ids = self._get_greenlist_ids(torch.as_tensor(context, device=self.device))
+        return True if target in greenlist_ids else False
+
+    def _score_ngrams_in_passage(self, input_ids: torch.Tensor):
+        """Score all ngrams in the passage using variable context widths."""
+        ngram_to_watermark_lookup = {}
+        frequencies_table = collections.Counter()
+        input_ids_list = input_ids.cpu().tolist()
+
+        for position in range(1, len(input_ids_list)):
+            prefix = input_ids_list[:position]
+            context_width = self._compute_context_width(torch.tensor(prefix, device=self.device))
+            context_width = min(context_width, position)  # Cannot be greater than position
+
+            if context_width == 0:
+                continue  # Cannot compute watermark with context width 0
+
+            context_start = position - context_width
+            context = tuple(input_ids_list[context_start:position])
+            target = input_ids_list[position]
+
+            # Create ngram key including context width to handle variable context widths
+            ngram_key = (context_width, context, target)
+
+            frequencies_table[ngram_key] += 1
+
+            if ngram_key not in ngram_to_watermark_lookup:
+                ngram_to_watermark_lookup[ngram_key] = self._get_ngram_score_cached(context, target)
+
+        return ngram_to_watermark_lookup, frequencies_table
+
+    def _get_green_at_T_booleans(self, input_ids, ngram_to_watermark_lookup):
+        """Generate binary lists indicating green tokens and handle repeated ngrams."""
+        green_token_mask = []
+        green_token_mask_unique = []
+        offsets = []
+        rev_offsets = []
+        used_ngrams = {}
+        unique_ngram_idx = 0
+        positions = []
+
+        input_ids_list = input_ids.cpu().tolist()
+
+        for position in range(1, len(input_ids_list)):
+            prefix = input_ids_list[:position]
+            context_width = self._compute_context_width(torch.tensor(prefix, device=self.device))
+            context_width = min(context_width, position)
+
+            if context_width == 0:
+                continue  # Cannot compute watermark with context width 0
+
+            context_start = position - context_width
+            context = tuple(input_ids_list[context_start:position])
+            target = input_ids_list[position]
+
+            ngram_key = (context_width, context, target)
+            positions.append(position)
+            green = ngram_to_watermark_lookup[ngram_key]
+            green_token_mask.append(green)
+
+            if self.ignore_repeated_ngrams:
+                if ngram_key in used_ngrams:
+                    pass
+                else:
+                    used_ngrams[ngram_key] = True
+                    unique_ngram_idx += 1
+                    green_token_mask_unique.append(green)
+                    rev_offsets.append(len(green_token_mask) - 1)
+            else:
+                green_token_mask_unique.append(green)
+                unique_ngram_idx += 1
+
+            offsets.append(unique_ngram_idx - 1)
+
+        return (
+            torch.tensor(green_token_mask),
+            torch.tensor(green_token_mask_unique),
+            torch.tensor(offsets),
+            torch.tensor(rev_offsets),
+            positions,
+        )
 
     def _score_sequence(
         self,
@@ -810,51 +921,46 @@ class VariableContextWatermarkDetector(WatermarkDetector):
         return_z_at_T: bool = True,
         return_p_value: bool = True,
     ):
-        """Score the input sequence using variable context widths."""
-        green_token_mask = []
-        num_tokens_scored = 0
-        green_token_count = 0
+        ngram_to_watermark_lookup, frequencies_table = self._score_ngrams_in_passage(input_ids)
+        (
+            green_token_mask,
+            green_mask_unique,
+            offsets,
+            rev_offsets,
+            positions,
+        ) = self._get_green_at_T_booleans(input_ids, ngram_to_watermark_lookup)
 
-        # Start from min_context_width since we need at least that many tokens
-        for i in range(self.min_context_width, len(input_ids)):
-            # Compute context width for current position
-            input_ids_slice = input_ids[:i]
-            context_width = self._compute_context_width(input_ids_slice)
-            # Ensure context width does not exceed current position
-            context_width = min(context_width, i)
-            # Get the context and target token
-            context = input_ids_slice[-context_width:]
-            target_token = input_ids[i]
-            # Seed RNG and generate greenlist
-            prf_key = prf_lookup[self.prf_type](context, salt_key=self.hash_key)
-            self.rng.manual_seed(prf_key % (2**64 - 1))
-            greenlist_size = int(self.vocab_size * self.gamma)
-            vocab_permutation = torch.randperm(
-                self.vocab_size, device=input_ids.device, generator=self.rng
+        actual_token_mask = torch.full(input_ids.shape, -1, dtype=int)  # Initialize with -1
+
+        positions_tensor = torch.tensor(positions)
+        if self.ignore_repeated_ngrams:
+            # Mark positions corresponding to unique ngrams
+            actual_token_mask[positions_tensor[rev_offsets]] = torch.tensor(
+                green_mask_unique, dtype=int
             )
-            if self.select_green_tokens:
-                greenlist_ids = vocab_permutation[:greenlist_size]
-            else:
-                greenlist_ids = vocab_permutation[-greenlist_size:]
-            # Check if the target token is in the greenlist
-            is_green = target_token in greenlist_ids
-            green_token_mask.append(is_green)
-            num_tokens_scored += 1
-            if is_green:
-                green_token_count += 1
+            num_tokens_scored = len(green_mask_unique)
+            green_token_count = green_mask_unique.sum().item()
+        else:
+            actual_token_mask[positions_tensor] = torch.tensor(green_token_mask, dtype=int)
+            num_tokens_scored = len(green_token_mask)
+            green_token_count = sum(
+                freq * outcome
+                for freq, outcome in zip(
+                    frequencies_table.values(), ngram_to_watermark_lookup.values()
+                )
+            )
 
-        # Convert green_token_mask to tensor
-        green_token_mask = torch.tensor(green_token_mask, device=input_ids.device)
+        # Handle cases where no tokens were scored
+        if num_tokens_scored == 0:
+            z_score = 0.0
+            p_value = 1.0
+            green_fraction = 0.0
+        else:
+            green_fraction = green_token_count / num_tokens_scored
+            z_score = self._compute_z_score(green_token_count, num_tokens_scored)
+            p_value = self._compute_p_value(z_score)
 
-        # Compute statistical metrics
-        green_fraction = green_token_count / num_tokens_scored if num_tokens_scored > 0 else 0.0
-        z_score = (
-            self._compute_z_score(green_token_count, num_tokens_scored)
-            if num_tokens_scored > 0
-            else 0.0
-        )
-
-        # Build the output dictionary
+        # Prepare the output dictionary
         score_dict = {}
         if return_num_tokens_scored:
             score_dict["num_tokens_scored"] = num_tokens_scored
@@ -865,12 +971,127 @@ class VariableContextWatermarkDetector(WatermarkDetector):
         if return_z_score:
             score_dict["z_score"] = z_score
         if return_p_value:
-            p_value = self._compute_p_value(z_score)
             score_dict["p_value"] = p_value
         if return_token_mask:
-            # Pad the beginning with -1 to align with input_ids
-            padding = [-1] * self.min_context_width
-            actual_token_mask = padding + green_token_mask.to(int).tolist()
-            score_dict["token_mask"] = actual_token_mask
+            score_dict["token_mask"] = actual_token_mask.tolist()
+        if return_z_at_T:
+            if num_tokens_scored == 0:
+                score_dict["z_score_at_T"] = []
+            else:
+                sizes = torch.arange(1, len(green_mask_unique) + 1)
+                seq_z_score_enum = torch.cumsum(green_mask_unique, dim=0) - self.gamma * sizes
+                seq_z_score_denom = torch.sqrt(sizes * self.gamma * (1 - self.gamma))
+                z_score_at_effective_T = seq_z_score_enum / seq_z_score_denom
+                z_score_at_T = z_score_at_effective_T[offsets]
+
+                score_dict["z_score_at_T"] = z_score_at_T.tolist()
 
         return score_dict
+
+    def _compute_z_score(self, observed_count, T):
+        if T == 0:
+            return 0.0
+        expected_count = self.gamma * T
+        numer = observed_count - expected_count
+        denom = sqrt(T * self.gamma * (1 - self.gamma))
+        if denom == 0:
+            return 0.0
+        z = numer / denom
+        return z
+
+
+# class VariableContextWatermarkDetector(WatermarkDetector):
+#     def __init__(
+#         self,
+#         *args,
+#         min_context_width=1,
+#         max_context_width=4,
+#         **kwargs,
+#     ):
+#         super().__init__(*args, **kwargs)
+#         self.min_context_width = min_context_width
+#         self.max_context_width = max_context_width
+
+#     def _compute_context_width(self, input_ids):
+#         """Compute the pseudorandom context width based on input_ids."""
+#         prf_key = prf_lookup[self.prf_type](input_ids, salt_key=self.hash_key)
+#         context_range = self.max_context_width - self.min_context_width + 1
+#         context_width = (prf_key % context_range) + self.min_context_width
+#         context_width = min(context_width, input_ids.shape[-1])
+#         return context_width
+
+#     def _score_sequence(
+#         self,
+#         input_ids: torch.Tensor,
+#         return_num_tokens_scored: bool = True,
+#         return_num_green_tokens: bool = True,
+#         return_green_fraction: bool = True,
+#         return_token_mask: bool = True,
+#         return_z_score: bool = True,
+#         return_z_at_T: bool = True,
+#         return_p_value: bool = True,
+#     ):
+#         """Score the input sequence using variable context widths."""
+#         green_token_mask = []
+#         num_tokens_scored = 0
+#         green_token_count = 0
+
+#         # Start from min_context_width since we need at least that many tokens
+#         for i in range(self.min_context_width, len(input_ids)):
+#             # Compute context width for current position
+#             input_ids_slice = input_ids[:i]
+#             context_width = self._compute_context_width(input_ids_slice)
+#             # Ensure context width does not exceed current position
+#             context_width = min(context_width, i)
+#             # Get the context and target token
+#             context = input_ids_slice[-context_width:]
+#             target_token = input_ids[i]
+#             # Seed RNG and generate greenlist
+#             prf_key = prf_lookup[self.prf_type](context, salt_key=self.hash_key)
+#             self.rng.manual_seed(prf_key % (2**64 - 1))
+#             greenlist_size = int(self.vocab_size * self.gamma)
+#             vocab_permutation = torch.randperm(
+#                 self.vocab_size, device=input_ids.device, generator=self.rng
+#             )
+#             if self.select_green_tokens:
+#                 greenlist_ids = vocab_permutation[:greenlist_size]
+#             else:
+#                 greenlist_ids = vocab_permutation[-greenlist_size:]
+#             # Check if the target token is in the greenlist
+#             is_green = target_token in greenlist_ids
+#             green_token_mask.append(is_green)
+#             num_tokens_scored += 1
+#             if is_green:
+#                 green_token_count += 1
+
+#         # Convert green_token_mask to tensor
+#         green_token_mask = torch.tensor(green_token_mask, device=input_ids.device)
+
+#         # Compute statistical metrics
+#         green_fraction = green_token_count / num_tokens_scored if num_tokens_scored > 0 else 0.0
+#         z_score = (
+#             self._compute_z_score(green_token_count, num_tokens_scored)
+#             if num_tokens_scored > 0
+#             else 0.0
+#         )
+
+#         # Build the output dictionary
+#         score_dict = {}
+#         if return_num_tokens_scored:
+#             score_dict["num_tokens_scored"] = num_tokens_scored
+#         if return_num_green_tokens:
+#             score_dict["num_green_tokens"] = green_token_count
+#         if return_green_fraction:
+#             score_dict["green_fraction"] = green_fraction
+#         if return_z_score:
+#             score_dict["z_score"] = z_score
+#         if return_p_value:
+#             p_value = self._compute_p_value(z_score)
+#             score_dict["p_value"] = p_value
+#         if return_token_mask:
+#             # Pad the beginning with -1 to align with input_ids
+#             padding = [-1] * self.min_context_width
+#             actual_token_mask = padding + green_token_mask.to(int).tolist()
+#             score_dict["token_mask"] = actual_token_mask
+
+#         return score_dict
